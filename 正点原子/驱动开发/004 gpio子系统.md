@@ -15,11 +15,12 @@ led {
     compatible = "gpio,led"
     pinctrl-names = "default";
     pinctrl-0 = <&xxx>;
-    led-gpio = <&gpio1 3 GPIO_ACTIVE_LOW>;
+    led-gpio = <&gpio1 3 GPIO_ACTIVE_LOW>; # 选择老的gpio_request，GPIO_ACTIVE_LOW将完全失效，gpio_set_value代表了物理值
 };
 ```
 
 ## 三、OF(设备树)GPIO解析层
+- \<linux/of_gpio.h\>
 - GPIO数量
 ```c
 static inline int of_gpio_named_count(struct device_node *np, const char* propname)
@@ -35,12 +36,14 @@ static inline int of_get_named_gpio(
     const char *propname,
     int index
 )
+// 成功返回GPIO编号，失败返回内核的错误码
 
 /* 示例 */
 int gpio = of_get_named_gpio(np, "led-gpio", 0);
 ```
 
 ## 四、GPIO核心操作层
+- \<linux/gpio.h\>
 - GPIO申请/释放
 ```c
 int gpio_request(unsigned gpio, const char *label)
