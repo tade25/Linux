@@ -3,26 +3,19 @@
 ## 一、platform总线存在的原因
 
 ### 1.1 Linux 的驱动设计哲学
-Linux内核从来不关心是谁家的驱动，它只关心：
-(1)设备是什么
-(2)谁来驱动它
-(3)怎么撮合它们
-于是衍生出了：**bus-device-driver模型**
+Linux内核它只关心：(1)设备是什么 (2)谁来驱动它 (3)怎么撮合它们，不关心是谁家的芯片，于是衍生出了**bus-device-driver模型**
 
-- 驱动的分离
-    - 比如将I2C控制器和I2C设备分离，主机厂编写I2C控制器驱动代码，Linux驱动框架编写具体的设备驱动
-    - 通过核心层将两者关联起来
-
-### platform总线解决了什么问题？
-Soc不全是PCI / USB / I2C这种“插上就枚举”的总线，针对UART / GPIO / I2C Controller / SPI Controller / DMA/Timer / RTC这类没有总线协议枚举的，Linux引入一个概念platform：一种“虚拟总线”，专门承载SoC内部设备
+### 1.2 platform总线解决了什么问题？
+- Soc不全是PCI / USB / I2C这种“插上就枚举”的总线 ，还有UART / GPIO / I2C Controller / SPI Controller / DMA / Timer / RTC这类没有总线协议枚举的
+- Linux引入一个概念platform：一种“虚拟总线”，专门承载SoC内部设备
 
 ## 二、总线-设备-驱动模型
-- 驱动逻辑层, platform_driver
+- 驱动逻辑层, device_driver
 - 总线核心层，bus_type
     - 总线的工作是完成总线下的设备和驱动之间的匹配
     - /sys/bus
     - 向Linux内核注册总线：bus_register
-- 设备描述层，device / platform_devices
+- 设备描述层，device
 ```mermaid
 graph BT
 A[设备描述层 --- 来自DT、代码等] --> B[总线核心层 --- match / probe调度]
@@ -31,6 +24,8 @@ B[总线核心层 --- match / probe调度] --> C[驱动逻辑层 --- probe / rem
 
 ## 三、bus_type
 ```c
+#include <linux/device.h>
+
 struct bus_type {
     const char *name;
     int (*match)(struct device *dev, struct device_driver *drv);
@@ -44,6 +39,8 @@ struct bus_type {
 
 ## 四、device_driver
 ```c
+#include <linux/device.h>
+
 struct device_driver {
     const char *name;
     struct bus_type *bus;
@@ -59,6 +56,8 @@ driver_register向总线注册驱动，会检查当前总线下的所有设备�
 
 ## 五、device
 ```c
+#include <linux/device.h>
+
 struct device {
     struct bus_type *bus;
     struct device_driver *driver;
@@ -68,12 +67,8 @@ struct device {
 };
 ```
 
-- device从哪儿来
-    - 有设备树 👉 由 DT 解析阶段创建
-    - 无设备树 👉 由 platform_device_register() 创建
-
 ## 六、platform总线
-### 6.1 platform总线是bus_type的一个实例
+- platform总线是bus_type的一个实例
 ```c
 struct bus_type platform_bus_type = {
 	.name	= "platform",
@@ -82,36 +77,77 @@ struct bus_type platform_bus_type = {
 	.pm	= &platform_dev_pm_ops,
 };
 ```
-- platform总线注册
-    - platform_bus_init
-    - bus_register
 
-## 七、platform_driver和platform_device
-- platform_driver
+## 七、platform_device
+- platform_device = device + SoC资源信息
 ```c
+#include <linux/platform_device.h>
+
 struct platform_device {
-	const char *name;
-	int id;
+    const char *name;
+    int id;
 
-	struct resource *resource;
-	struct device dev;
+    struct resource *resource;
+    struct device dev;
     ... // 不重要的内容
 };
 ```
 
-- platform_device
+- platform_device的来源
+    - 设备树，详情见第9章DT到platform_device的真相
+    - 老派写法，如下所示
 ```c
-struct platform_driver {
-	int (*probe)(struct platform_device *);
-	int (*remove)(struct platform_device *);
+#include <linux/platform_device.h>
 
-	struct device_driver driver;
-	const struct platform_device_id *id_table;
+static struct resource uart_res[] = {
+    {
+        .start = 0x10000000,
+        .end   = 0x10000fff,
+        .flags = IORESOURCE_MEM,
+    },
+    {
+        .start = 32,
+        .end   = 32,
+        .flags = IORESOURCE_IRQ,
+    },
+};
+
+static struct platform_device uart_pdev = {
+    .name = "my_uart",
+    .id   = -1,
+    .num_resources = ARRAY_SIZE(uart_res),
+    .resource = uart_res,
+};
+
+platform_device_register(&uart_pdev);
+```
+
+## 八、platform_driver
+- platform_driver，并没有多加功能，只是把device_driver包在结构体
+```c
+#include <linux/platform_device.h>
+
+struct platform_device_id {
+    char name[PLATFORM_NAME_SIZE];
+    kernel_ulong_t driver_data;
+};
+
+struct platform_driver {
+    int (*probe)(struct platform_device *);
+    int (*remove)(struct platform_device *);
+
+    struct device_driver driver;
+    const struct platform_device_id *id_table;
     ... // 不重要的内容
 };
 ```
 
-## 8、DT到platform_device的真相
+- platform_driver的注册函数
+```c
+int platform_driver_register(struct platform_driver *drv);
+```
+
+## 九、DT到platform_device的真相
 - 1、内核启动早期
 ```text
 start_kernel
