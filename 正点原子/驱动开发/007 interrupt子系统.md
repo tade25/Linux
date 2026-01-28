@@ -55,6 +55,29 @@ gpio_to_irq，本质就是GPIO hwirq → GPIO irq_domain → Linux irq
 - handle_irq（边沿 / 电平处理函数）
 - irqaction（注册的handler链表）
 
+## 驱动层
+```c
+#include <linux/gpio.h>
+
+int gpio_to_irq(unsigned int gpio); // 成功返回IRQ号，失败返回负数错误码
+
+typedef irqreturn_t (*irq_handler_t)(int, void *);
+irqreturn_t my_irq_handler(int irq, void *dev_id)
+{
+    return IRQ_HANDLED;
+}
+
+#include <linux/interrupt.h>
+
+static inline int __must_check request_irq(
+    unsigned int irq,
+    irq_handler_t handler,
+    unsigned long flags,
+    const char *name,
+    void *dev
+) // 注册成功返回0，注册失败返回负数的errno
+```
+
 ## GPIO中断实例
 - 设备树
 ```dts
