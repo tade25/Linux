@@ -147,14 +147,100 @@ struct platform_driver {
 int platform_driver_register(struct platform_driver *drv);
 ```
 
-## 九、DT到platform_device的真相
+## 九、DT -> device_node -> platform_device的真相
 - 1、内核启动早期
 ```text
 start_kernel
- └─ setup_arch
-     └─ unflatten_device_tree
+└─ setup_arch
+    └─ unflatten_device_tree
+        └─ __unflatten_device_tree
 ```
-👉 把 .dtb 解析成一棵 device_node 树
+
+```c
+//==============================
+// 1) 全局关键变量
+//==============================
+struct device_node *of_root;        // 解析后的设备树根节点 ("/")
+void *initial_boot_params;          // Bootloader 传进来的原始 DTB 起始地址 (FDT blob)
+
+// initial_boot_params 指向的是一块 "flattened device tree" (DTB) 的内存
+// 里面是 FDT 格式：header + structure block + strings block
+
+//==============================
+// 2) 把 DTB -> device_node 树
+//==============================
+void __init unflatten_device_tree(void)
+{
+    __unflatten_device_tree(initial_boot_params,
+                            NULL,
+                            &of_root,
+                            early_init_dt_alloc_memory_arch,
+                            false);
+}
+
+// blob      : 原始 dtb 的起始地址 (FDT blob)
+// dad       : 父节点(这里传 NULL，表示从根开始构建整棵树)
+// mynodes   : 输出参数，返回解析出来的根 device_node (of_root)
+// dt_alloc  : 内存分配器 (early 阶段用 memblock 分配)
+// detached  : 是否标记为 detached tree
+static void *__unflatten_device_tree(const void *blob,
+                                     struct device_node *dad,
+                                     struct device_node **mynodes,
+                                     void *(*dt_alloc)(u64 size, u64 align),
+                                     bool detached)
+{
+    int size;
+    void *mem;
+
+    // 0) 检查 blob 是否有效
+    // fdt_check_header(blob) 验证 dtb header/magic 等
+
+    //==================================================
+    // 1) 第一遍：dry-run 只遍历，计算需要多少内存
+    //==================================================
+    size = unflatten_dt_nodes(blob, NULL, dad, NULL);
+    // mem == NULL -> dryrun = true
+    // 只算 device_node + property + 字符串等需要的总大小
+
+    size = ALIGN(size, 4);
+
+    //==================================================
+    // 2) 分配一整块连续内存 (early 阶段)
+    //==================================================
+    mem = dt_alloc(size + 4, __alignof__(struct device_node));
+
+    memset(mem, 0, size);
+
+    //==================================================
+    // 3) 第二遍：real-run 真正创建节点并填充数据
+    //==================================================
+    unflatten_dt_nodes(blob, mem, dad, mynodes);
+    // mem != NULL -> dryrun = false
+    // 在 mem 这块连续内存里依次摆放并填充：
+    //   struct device_node
+    //   struct property
+    // 并建立 parent/child/sibling/property 链表关系
+
+    return mem;
+}
+
+//==================================================
+// unflatten_dt_nodes() 的核心意义
+//==================================================
+//
+// 第一次调用：计算大小（dryrun）
+//   unflatten_dt_nodes(blob, NULL, ...)
+//     -> 遍历 dtb 所有 node
+//     -> 统计需要多少内存
+//
+// 第二次调用：构建树（real-run）
+//   unflatten_dt_nodes(blob, mem, ...)
+//     -> 真的生成 device_node 树
+//     -> 最终得到 of_root 指向根节点 "/"
+//
+//==================================================
+```
+👉 最终效果：把.dtb(flattened FDT)解析成一棵device_node树(of_root)
 
 - 2、platform总线初始化
 ```text
@@ -164,6 +250,15 @@ platform_bus_init
 
 - 3、DT生成platform_device
 ```text
+start_kernel
+└─ rest_init
+    └─ kernel_init
+        └─ kernel_init_freeable
+            └─ do_basic_setup
+                └─ do_initcalls
+                    └─ ...
+                        └─ of_platform_populate
+
 of_platform_populate()
  └─ 对每个 compatible 的 DT 节点
      └─ platform_device_alloc()
