@@ -46,7 +46,7 @@ int gpio = of_get_named_gpio(np, "led-gpio", 0);
 - \<linux/gpio.h\>
 - GPIO申请/释放
 ```c
-int gpio_request(unsigned gpio, const char *label)
+int gpio_request(unsigned gpio, const char *label) // 0：申请成功 负数errno：失败
 void gpio_free(unsigned gpio)
 
 /* 示例 */
@@ -56,11 +56,11 @@ gpio_free(gpio);
 
 - GPIO方向设置
 ```c
-static inline int gpio_direction_output(unsigned gpio, int value)
-static inline int gpio_direction_input(unsigned gpio)
+static inline int gpio_direction_output(unsigned gpio, int value) // 0：设置输出方向成功 负数errno：失败
+static inline int gpio_direction_input(unsigned gpio) // 0：设置输入方向成功 负数errno：失败
 
 /* 示例 */
-gpio_direction_input(gpio);
+gpio_direction_input(gpio); // 返回实际的物理电平值，即0/1
 gpio_direction_output(gpio, value);
 ```
 

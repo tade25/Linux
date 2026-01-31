@@ -117,6 +117,8 @@ static inline int __must_check request_irq(
 
 在/proc/interrupts可以看到名为name的中断
 
+void free_irq(unsigned int irq, void *dev_id);
+
 /* 使能中断 */
 void enable_irq(unsigned int irq)
 

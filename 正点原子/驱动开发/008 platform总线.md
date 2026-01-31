@@ -41,6 +41,13 @@ struct bus_type {
 ```c
 #include <linux/device.h>
 
+struct of_device_id {
+	char	name[32];
+	char	type[32];
+	char	compatible[128];
+	const void *data;
+};
+
 struct device_driver {
     const char *name;
     struct bus_type *bus;
