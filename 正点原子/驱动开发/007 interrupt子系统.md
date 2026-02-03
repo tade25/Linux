@@ -115,6 +115,17 @@ static inline int __must_check request_irq(
     void *dev
 ) // 注册成功返回0，注册失败返回负数的errno
 
+/* 中断线程化 */
+int devm_request_threaded_irq(
+    struct device *dev,
+    unsigned int irq,
+    irq_handler_t handler,
+    irq_handler_t thread_fn,
+    unsigned long irqflags,
+    const char *devname,
+    void *dev_id
+)
+
 在/proc/interrupts可以看到名为name的中断
 
 void free_irq(unsigned int irq, void *dev_id);

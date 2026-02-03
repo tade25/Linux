@@ -49,6 +49,13 @@ int gpio = of_get_named_gpio(np, "led-gpio", 0);
 int gpio_request(unsigned gpio, const char *label) // 0：申请成功 负数errno：失败
 void gpio_free(unsigned gpio)
 
+int devm_gpio_request_one(
+    struct device *dev,
+    unsigned gpio,
+    unsigned long flags,
+    const char *label
+)
+
 /* 示例 */
 gpio_request(gpio, "led_gpio");
 gpio_free(gpio);
