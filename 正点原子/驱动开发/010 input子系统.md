@@ -1,4 +1,6 @@
 # input子系统
+- 按键、鼠标、键盘、触摸屏等都属于输入设备，Linux内核为此专门做了一个叫做input子系统的框架来处理输入事件
+- 本质上还是字符设备(drivers/input/input.c)，只是在此基础上套上了input框架
 
 ## 一、input子系统的整体架构
 ### 1.1 框架图
@@ -24,8 +26,8 @@ struct input_dev {
     struct input_id id;
 
     /* 能力描述（核心） */
-    unsigned long evbit[BITS_TO_LONGS(EV_CNT)];
-    unsigned long keybit[BITS_TO_LONGS(KEY_CNT)];
+    unsigned long evbit[BITS_TO_LONGS(EV_CNT)];     // 设备支持的事件类型
+    unsigned long keybit[BITS_TO_LONGS(KEY_CNT)];   // 在EV_KET类型里面，我支持哪些按键，不能我不支持，你乱上报
     unsigned long absbit[BITS_TO_LONGS(ABS_CNT)];
     unsigned long relbit[BITS_TO_LONGS(REL_CNT)];
     unsigned long swbit[BITS_TO_LONGS(SW_CNT)];
@@ -43,7 +45,10 @@ struct input_dev {
 ```
 - input_dev
     - evbit，我能产生哪些事件大类
-
+        - EV_SYN
+        - EV_KEY
+        - EV_REL
+        - EV_ABS
     - keybit / absbit / relbit，在这个大类下，我支持哪些事件
 
     - name / phys / id，纯粹是给人和用户空间识别用的
@@ -77,6 +82,11 @@ handler的行为：
 ### 1.6 用户空间
 用户空间只看到标准事件流
 ```c
+struct timeval {
+    __kernel_time_t         tv_sec;		/* seconds */
+    __kernel_suseconds_t    tv_usec;	/* microseconds */
+};  // __kernel_time_t和__kernel_suseconds_t都是long
+
 struct input_event {
     struct timeval time;
     __u16 type;
